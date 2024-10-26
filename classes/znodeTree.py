@@ -1,7 +1,6 @@
 from classes.znode import ZNode
 from kazoo.client import KazooClient
-from handlers.json_file import load_json_file
-from handlers.yaml import json_str
+from handlers.json_file import load_json_file, dict_to_json
 
 
 class ZNodeTree:
@@ -13,10 +12,10 @@ class ZNodeTree:
         :param root_path: The root path of the ZNodeTree to start from
         """
         self.zk = zk
-        self.root_path = root_path
+        self.root_path = f"{root_path if root_path == '/' else root_path + '/'}"
 
 
-    def get_current_state(self, path=self.root_path):
+    def get_current_state(self, path=''):
         """
         Recursively build the ZNodeTree from a given path.
 
@@ -47,30 +46,31 @@ class ZNodeTree:
     #     for child in node.children:
     #         self.print(child, level + 1)
 
-    def update(self, json_data, parent_znode='', env=''):
-
-        parent_znode=f"{parent_znode if parent_znode == '/' else parent_znode + '/'}"
+    def update(self, json_data, env=''):
 
         if not env in json_data and "default_value" in json_data:
-            ZNode.update(self.zk, parent_znode, json_data.get("default_value"))
+            ZNode.update(self.zk, self.root_path, json_data.get("default_value"))
             return
 
         if env in json_data:
             if isinstance(json_data.get(env), dict):
-                self.update(json_data.get(env), parent_znode, env)
+                self.update(json_data.get(env), env)
                 return
             else:
-                ZNode.update(self.zk, parent_znode, json_data.get(env))
+                ZNode.update(self.zk, self.root_path ,json_data.get(env))
                 return
 
         for path, value in json_data.items():
-            path= f"{parent_znode}{path}"
+            path= f"{self.root_path}{path}"
             if isinstance (value, dict):
-                self.update(value, path, env)
+                self.update(value, env)
             else:
                 ZNode.update(self.zk, path, value)
 
-    def to_dict(self, path=self.root_path):
+    def to_dict(self, path=None):
+
+        if path is None:
+            path = self.root_path
         """
         Convert the ZNodeTree structure to a dictionary where keys are paths and values are data.
         """
@@ -78,27 +78,37 @@ class ZNodeTree:
         # Initialize the result dictionary
         result = {}
 
-        data, _ = self.zk.get(path)
+        children= self.zk.get_children(path)
 
-        children_paths = self.zk.get_children(path)
+        for child in children:
+            child_path=f"{path}/{child}" if path != "/" else f"/{child}"
 
-        # Store the data in the result dictionary
-        result[path] = data.decode('utf-8') if data else None
-
-        # Recursively get data for each child path
-        for child in children_paths:
-            child_path = f"{path if path == '/' else path + '/'}{child}"
-            result.update(self.to_dict(child_path))
+            data, _ = self.zk.get(child_path)
+            result[child]= self.to_dict(child_path) if self.zk.get_children(child_path) else data.decode('utf-8')
 
         return result
 
-    def compare_states(self, old, new):
+    def compare_states(self, current, new):
         """
         Compare two states of the ZNode tree and print created, deleted, and changed nodes.
         """
         created = {}
         deleted = {}
         changed = {}
+
+        for key in new:
+            if key not in current:
+                created[key] = new[key]  # Key is new
+            elif current[key] != new[key]:
+                changed[key] = {'old_value': current[key], 'new': new_dict[key]}  # Key has different value
+
+        # Check for deleted keys
+        for key in current:
+            if key not in new:
+                deleted[key] = current[key]  # Key is missing in new_dict
+
+        return created, changed, deleted
+
 
 
     # def iterate_nested_json_for_loop(json_obj, parent_key=''):
@@ -113,5 +123,7 @@ class ZNodeTree:
     #     def a="44";
 
     def backup(self):
-        return
+       # aa = self.to_dict(self.root_path)
+        dict_to_json(self.root_path,self.to_dict(self.root_path))
+
 

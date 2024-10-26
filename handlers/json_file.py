@@ -46,3 +46,10 @@ def load_json_file(file_path):
     except json.JSONDecodeError:
         print("Error: Failed to decode JSON.")
         return None
+
+def dict_to_json(znode_name,dict):
+
+    znode_name="root_" if znode_name == "/" else znode_name.replace("/", "_")
+
+    with open(f"{znode_name}znode_backup.json", "w") as outfile:
+        json.dump(dict, outfile, indent = 4)
