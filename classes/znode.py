@@ -1,5 +1,6 @@
+from kazoo.client import KazooClient
 class ZNode:
-    def __init__(self, path, data=None, children=None):
+    def __init__(self, path ,data=None, children=None):
         """
         Initialize a ZNode instance.
 
@@ -13,6 +14,17 @@ class ZNode:
 
     def __str__(self):
         return f"path: {self.path}, data: {self.data}"
+
+    @staticmethod
+    def update(zk: KazooClient,path, value):
+        if zk.exists(path):
+            # If the node exists, update its value
+            zk.set(path, value.encode('utf-8'))
+            print(f"Node {path} updated with value: {value}")
+        else:
+            # If the node doesn't exist, create it with the specified value
+            zk.create(path, value.encode('utf-8'), makepath=True)
+            print(f"Node {path} created with value: {value}")
 
     def __repr__(self):
         """
