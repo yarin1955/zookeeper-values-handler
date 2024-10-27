@@ -67,7 +67,7 @@ class ZNodeTree:
             else:
                 ZNode.update(self.zk, path, value)
 
-    def to_dict(self, path=None):
+    def to_nested_dict(self, path=None):
 
         if path is None:
             path = self.root_path
@@ -88,42 +88,51 @@ class ZNodeTree:
 
         return result
 
+    def to_flat_dict(self, path=None):
+
+        if path is None:
+            path = self.root_path
+
+        # Initialize the result dictionary
+        result = {}
+        data, _ = self.zk.get(path)
+        children_paths = self.zk.get_children(path)
+        # Store the data in the result dictionary
+        result[path] = data.decode('utf-8') if data else None
+        # Recursively get data for each child path
+        for child in children_paths:
+            child_path = f"{path if path == '/' else path + '/'}{child}"
+            result.update(self.to_flat_dict(child_path))
+
+        return result
+
     def compare_states(self, current, new):
         """
         Compare two states of the ZNode tree and print created, deleted, and changed nodes.
         """
-        created = {}
+        added = {}
         deleted = {}
         changed = {}
 
         for key in new:
             if key not in current:
-                created[key] = new[key]  # Key is new
+                added[key] = new[key]  # Key is new
             elif current[key] != new[key]:
-                changed[key] = {'old_value': current[key], 'new': new_dict[key]}  # Key has different value
+                changed[key] = {'current_value': current[key], 'new': new[key]}  # Key has different value
 
         # Check for deleted keys
         for key in current:
             if key not in new:
                 deleted[key] = current[key]  # Key is missing in new_dict
 
-        return created, changed, deleted
-
-
-
-    # def iterate_nested_json_for_loop(json_obj, parent_key=''):
-    #     for key, value in json_obj.items():
-    #         new_key = f"{parent_key}/{key}" if parent_key else f"/{key}"
-    #         if isinstance(value, dict):
-    #             iterate_nested_json_for_loop(value, new_key)
-    #         else:
-    #             print(f"{new_key}: {value}")
-
-    # def update(self):
-    #     def a="44";
+        for key in added:
+            print(f"++ {key} added with value: {added[key]}")
+        for key in deleted:
+            print(f"-- {key} deleted")
+        for key, values in changed.items():
+            print(f"** {key} changed from {values['current_value']} to {values['new_value']}")
 
     def backup(self):
-       # aa = self.to_dict(self.root_path)
-        dict_to_json(self.root_path,self.to_dict(self.root_path))
+        dict_to_json(self.root_path,self.to_nested_dict(self.root_path))
 
 

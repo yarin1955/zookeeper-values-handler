@@ -1,7 +1,7 @@
 import argparse
 from classes.znodeTree import ZNodeTree
 from kazoo.client import KazooClient
-from handlers.json_file import load_json_file
+from handlers.json_file import load_json_file, flatten_json
 
 def main(args):
     zk = KazooClient(hosts='127.0.0.1:2181')
@@ -13,6 +13,7 @@ def main(args):
     if args.update:
         json_data= load_json_file(args.pathfile)
         ztree.update(json_data, args.env)
+        ztree.compare_states(ztree.to_flat_dict(args.znode), flatten_json(json_data))
     if args.backup:
         ztree.backup()
 
